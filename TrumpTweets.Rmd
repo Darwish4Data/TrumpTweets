@@ -2,7 +2,7 @@
 title: "Sentiment Analysis of Trump's Tweets"
 author: "Sarah Darwish"
 date: "11/2/2019"
-output: html_document
+output: rmarkdown::github_document
 ---
 In this report, we hope to continue the great job started by David Robinson, back in 2016, on analyzing Trump's tweets. We aim to highlight the sentiments invoked by Trump's tweets since his campaign for his 2016 presidency campaign. 
 
