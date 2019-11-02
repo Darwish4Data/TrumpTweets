@@ -1,0 +1,162 @@
+---
+title: "Sentiment Analysis of Trump's Tweets"
+author: "Sarah Darwish"
+date: "11/2/2019"
+output: github_document
+---
+In this report, we hope to continue the great job started by David Robinson, back in 2016, on analyzing Trump's tweets. We aim to highlight the sentiments invoked by Trump's tweets since his campaign for his 2016 presidency campaign. 
+
+## Trump's Campaign Tweets
+
+
+#### _On August 6, 2016 Todd Vaziri tweeted about Trump that "Every non-hyperbolic tweet is from iPhone (his staff). Every hyperbolic tweet is from Android (from him)._
+
+Following in Robinson's footsteps, we analyze the timestamps of Trump's tweets to see if tweets issued from each platform follow different patterns -supporting the "different tweeters" hypothesis.
+
+
+```{r time-stamp, include=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+library (tidyverse)
+library (ggplot2)
+library (lubridate)
+library (tidyr)
+library (dslabs)
+library (scales)
+library (tidytext)
+set.seed(1)
+
+data("trump_tweets")
+
+
+campaign_tweets <- trump_tweets %>% 
+  extract(source, "source", "Twitter for (.*)") %>%
+  filter(source %in% c("Android", "iPhone") &
+           created_at >= ymd("2015-06-17") & 
+           created_at < ymd("2016-11-08")) %>%
+  filter(!is_retweet) %>%
+  arrange(created_at)
+
+
+ds_theme_set()
+campaign_tweets %>%
+  mutate(hour = hour(with_tz(created_at, "EST"))) %>%
+  count(source, hour) %>%
+  group_by(source) %>%
+  mutate(percent = n / sum(n)) %>%
+  ungroup %>%
+  ggplot(aes(hour, percent, color = source)) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Hour of day (EST)",
+       y = "% of tweets",
+       color = "")
+
+
+```
+
+
+As can be seen in the figure above, the timings of tweets issued from each platform do, in fact, follow different trends -with tweets issued from "Android" peaking somewhere between 7 and 8 am: The proverbial Presidential Morning Tweet. 
+
+#### _But many questions yet remain: Do tweets issued by Trump's campaign staff convey different emotions? Are tweets issued by Donald Trump more likely to be hyperbolic?_
+
+A quick analysis of the most frequently used words across each platform, produces the following graph:
+
+
+```{r frequentWords, echo= FALSE, warning= FALSE,message= FALSE}
+pattern <- "([^A-Za-z\\d#@']|'(?![A-Za-z\\d#@]))"
+
+tweet_words <- campaign_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word)
+
+tweet_words <- campaign_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word &
+           !str_detect(word, "^\\d+$")) %>%
+  mutate(word = str_replace(word, "^'", "")) %>% count(word, source) %>% arrange(desc(n))
+
+top20 <- tweet_words %>% arrange (desc(n)) %>% filter(source=="iPhone")
+top20[1:20,]  %>% ggplot(aes(x= reorder(word,n), y=n)) + geom_bar(stat = "identity") + coord_flip() + labs(title = "Most Frequent Words Tweeted by Staff") + xlab("Most Frequent Words") +ylab("Number of Times Tweeted")
+
+top20b <- tweet_words %>% arrange (desc(n)) %>% filter(source=="Android")
+top20b[1:20,]  %>% ggplot(aes(x= reorder(word,n), y=n)) + geom_bar(stat = "identity") + coord_flip() + labs(title = "Most Frequent Words Tweeted by Trump") + xlab("Most Frequent Words") + ylab("Number of Times Tweeted")
+
+
+```
+
+Furthermore, by applying sentiment analysis, we can see the most invoked sentiments, by tweets on each platform, by word count in the following graph:
+
+```{r sentiment, echo=FALSE, warning=FALSE, message=FALSE}
+
+nrc <- get_sentiments("nrc") %>%
+  select(word, sentiment)
+
+
+sentiment_counts <- tweet_words %>%
+  left_join(nrc, by = "word") %>%
+  count(source, sentiment) %>%
+  mutate(sentiment = replace_na(sentiment, replace = "none")) %>%
+  filter (sentiment!="none") 
+sentiment_counts %>% 
+  ggplot(aes(sentiment, n, fill= source)) +
+  geom_col(position= position_dodge(width=0.9)) +
+  ylab("Word Frequency") + xlab ("Sentiment")
+```
+
+
+## Trump's Post-Campaign Tweets
+
+We continue our analysis of Donald Trump's tweets issued as President of the United States, following his success at the 2016 Presidential elections. 
+
+We continue to analyze Trump's tweets (he now tweets through _both_ platforms: Android and iPhone).
+
+The following graph shows the most frequent words tweeted by President Donald Trump.
+
+```{r postcampaigntrends, echo= FALSE, message=FALSE, warning=FALSE }
+pc_tweets <- trump_tweets %>% 
+  extract(source, "source", "Twitter for (.*)") %>%
+  filter(source %in% c("Android", "iPhone") &
+           created_at > ymd("2016-11-08") ) %>%
+  filter(!is_retweet) %>%
+  arrange(created_at)
+
+pattern <- "([^A-Za-z\\d#@']|'(?![A-Za-z\\d#@]))"
+
+t_words <- pc_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word)
+
+t_words <- pc_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word &
+           !str_detect(word, "^\\d+$")) %>%
+  mutate(word = str_replace(word, "^'", "")) %>% count(word, source) %>% arrange(desc(n))
+
+top20 <- t_words %>% arrange (desc(n))
+top20[1:20,]  %>% ggplot(aes(x= reorder(word,n), y=n)) + geom_bar(stat = "identity") + coord_flip() + labs(title = "Most Frequent Words Tweeted by Trump") + xlab("Most Frequent Words") +ylab("Number of Times Tweeted")
+
+
+```
+
+We also analyze the sentiments invoked by his post-campaign tweets.
+
+```{r pcsentiment, echo=FALSE, warning=FALSE, message=FALSE}
+
+nrc <- get_sentiments("nrc") %>%
+  select(word, sentiment)
+
+
+sentiment_counts <- t_words %>%
+  left_join(nrc, by = "word") %>%
+  count(sentiment) %>%
+  mutate(sentiment = replace_na(sentiment, replace = "none")) %>%
+  filter (sentiment!="none") 
+sentiment_counts %>% 
+  ggplot(aes(sentiment, n)) +
+  geom_col(position= position_dodge(width=0.9)) +
+  ylab("Word Frequency") + xlab ("Sentiment")
+```
